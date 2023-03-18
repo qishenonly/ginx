@@ -1,6 +1,7 @@
 package gnet
 
 import (
+	"errors"
 	"fmt"
 	"ginx/giface"
 	"net"
@@ -16,6 +17,17 @@ type Server struct {
 	IP string
 	//服务器监听的端口
 	Port int
+}
+
+// 定义当前客户短链接的所绑定的handle api（目前写死，以后放开此api）
+func CallBackToClient(conn *net.TCPConn, data []byte, cnt int) error {
+	//回显的业务
+	fmt.Println("[Conn Handle] CallBackToClient")
+	if _, err := conn.Write(data[:cnt]); err != nil {
+		fmt.Println("write back buf err", err)
+		return errors.New("CallBackToClient error")
+	}
+	return nil
 }
 
 // 启动服务器
@@ -38,6 +50,8 @@ func (s *Server) Start() {
 		}
 
 		fmt.Println("start Ginx server success,", s.Name, "success listening...")
+		var cid uint32
+		cid = 0
 
 		//阻塞的等待客户端的链接，处理客户端链接业务(读写)
 		for {
@@ -47,26 +61,12 @@ func (s *Server) Start() {
 				fmt.Println("Accept err:>>", err)
 				continue
 			}
+			//将处理新链接的业务方法和conn进行绑定，得到链接模块
+			dealConn := NewConnection(conn, cid, CallBackToClient)
+			cid++
 
-			//已经与客户端建立链接，做一些业务
-			go func() {
-				for {
-					buf := make([]byte, 512)
-					cnt, err := conn.Read(buf)
-					if err != nil {
-						fmt.Println("receive buf err:>>", err)
-						continue
-					}
-
-					fmt.Printf("receive client buf %s, cnt %d\n", buf, cnt)
-
-					// 回显功能
-					if _, err := conn.Write(buf[:cnt]); err != nil {
-						fmt.Println("write back buf err:>>", err)
-						continue
-					}
-				}
-			}()
+			//启动当前的链接业务处理
+			go dealConn.Start()
 		}
 	}()
 }
