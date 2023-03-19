@@ -3,6 +3,7 @@ package gnet
 import (
 	"fmt"
 	"ginx/giface"
+	"ginx/utils"
 	"net"
 )
 
@@ -45,8 +46,8 @@ func (c *connection) StartReader() {
 	defer c.Stop()
 
 	for {
-		//读取客户端的数据到buf中，最大512字节
-		buf := make([]byte, 512)
+		//读取客户端的数据到buf中
+		buf := make([]byte, utils.GlobalObject.MaxPackageSize)
 		_, err := c.Conn.Read(buf)
 		if err != nil {
 			fmt.Println("receive buf err:>>", err)

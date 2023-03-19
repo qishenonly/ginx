@@ -1,0 +1,7 @@
+{
+  "Name":"Ginx V0.4 ServerApp",
+  "Host":"127.0.0.1",
+  "TcpPort":8888,
+  "MaxConn":3,
+  "MaxPackageSize":4096
+}
