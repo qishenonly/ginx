@@ -38,7 +38,7 @@ var GlobalObject *GlobalObj
 */
 func init() {
 	//如果配置文件没有加载，默认值
-	GlobalObject := &GlobalObj{
+	GlobalObject = &GlobalObj{
 		Name:           "GinxServerApp",
 		Version:        "V0.4",
 		TcpPort:        8999,
