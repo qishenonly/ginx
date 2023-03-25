@@ -24,18 +24,18 @@ type connection struct {
 	//告知当前链接已经退出的/停止 channel
 	EixtChan chan bool
 
-	//该链接处理的方法Router
-	Router giface.IRouter
+	//消息管理MsgID和对应的处理业务的api
+	MsgHandler giface.IMsgHandle
 }
 
 // 初始化链接模块的方法
-func NewConnection(conn *net.TCPConn, connId uint32, router giface.IRouter) *connection {
+func NewConnection(conn *net.TCPConn, connId uint32, msgHandle giface.IMsgHandle) *connection {
 	c := &connection{
-		Conn:     conn,
-		ConnID:   connId,
-		Router:   router,
-		isClosed: false,
-		EixtChan: make(chan bool, 1),
+		Conn:       conn,
+		ConnID:     connId,
+		MsgHandler: msgHandle,
+		isClosed:   false,
+		EixtChan:   make(chan bool, 1),
 	}
 	return c
 }
@@ -89,12 +89,8 @@ func (c *connection) StartReader() {
 			msg:  msg,
 		}
 
-		//执行注册的路由方法
-		go func(request giface.IRequest) {
-			c.Router.PreHandle(request)
-			c.Router.Handle(request)
-			c.Router.PostHandle(request)
-		}(&req)
+		//从路由中找到注册绑定的Conn对应的router调用
+		go c.MsgHandler.DoMsgHandler(&req)
 
 	}
 }
