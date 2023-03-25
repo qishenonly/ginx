@@ -1,9 +1,10 @@
 package gnet
 
 import (
+	"errors"
 	"fmt"
 	"ginx/giface"
-	"ginx/utils"
+	"io"
 	"net"
 )
 
@@ -47,17 +48,45 @@ func (c *connection) StartReader() {
 
 	for {
 		//读取客户端的数据到buf中
-		buf := make([]byte, utils.GlobalObject.MaxPackageSize)
-		_, err := c.Conn.Read(buf)
-		if err != nil {
-			fmt.Println("receive buf err:>>", err)
-			continue
+		//buf := make([]byte, utils.GlobalObject.MaxPackageSize)
+		//_, err := c.Conn.Read(buf)
+		//if err != nil {
+		//	fmt.Println("receive buf err:>>", err)
+		//	continue
+		//}
+
+		//创建一个拆包解包对象
+		dp := NewDataPack()
+
+		//读取客户端的Mdg Head 二进制流的 8个字节
+		headData := make([]byte, dp.GetHeadLen())
+		if _, err := io.ReadFull(c.GetTCPConnection(), headData); err != nil {
+			fmt.Println("read msg head err:>>", err)
+			break
 		}
+
+		//拆包，得到msgID  和 msgDatelen 放在msg消息中
+		msg, err := dp.Unpack(headData)
+		if err != nil {
+			fmt.Println("unpack err:>>", err)
+			break
+		}
+
+		//根据Datalen 再次读取Data 放在msg.Data中
+		var data []byte
+		if msg.GetMsgLen() > 0 {
+			data = make([]byte, msg.GetMsgLen())
+			if _, err := io.ReadFull(c.GetTCPConnection(), data); err != nil {
+				fmt.Println("read msg data err:>>", err)
+				break
+			}
+		}
+		msg.SetData(data)
 
 		//得到当前conn数据的Request请求数据
 		req := Request{
 			conn: c,
-			data: buf,
+			msg:  msg,
 		}
 
 		//执行注册的路由方法
@@ -110,7 +139,26 @@ func (c *connection) RemoteAddr() net.Addr {
 	return c.Conn.RemoteAddr()
 }
 
-// 发送数据：将数据发送给远程的客户端
-func (c *connection) Send(data []byte) error {
+// 提供一个SendMsg方法 将我们要发送给客户端的数据，先进行封包，再发送
+func (c *connection) SendMsg(msgId uint32, data []byte) error {
+	if c.isClosed == true {
+		return errors.New("Connectino closed when send msg")
+	}
+
+	//将data进行封包 MsgDatalen|MsgID|data
+	dp := NewDataPack()
+
+	binaryMsg, err := dp.Pack(NewMsgPackage(msgId, data))
+	if err != nil {
+		fmt.Println("Pack err msg id = ", msgId)
+		return errors.New("Pack error msg")
+	}
+
+	//将数据发送给客户端
+	if _, err := c.Conn.Write(binaryMsg); err != nil {
+		fmt.Println("Write msg id = ", msgId, " error :>>", err)
+		return errors.New("conn Write error")
+	}
+
 	return nil
 }
