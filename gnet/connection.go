@@ -21,8 +21,11 @@ type connection struct {
 	//当前的链接状态
 	isClosed bool
 
-	//告知当前链接已经退出的/停止 channel
+	//告知当前链接已经退出的/停止 channel -- 由Reader告知Writer退出
 	EixtChan chan bool
+
+	//无缓冲的管道，用于读写 Groutine之间的消息通信
+	msgChan chan []byte
 
 	//消息管理MsgID和对应的处理业务的api
 	MsgHandler giface.IMsgHandle
@@ -36,14 +39,15 @@ func NewConnection(conn *net.TCPConn, connId uint32, msgHandle giface.IMsgHandle
 		MsgHandler: msgHandle,
 		isClosed:   false,
 		EixtChan:   make(chan bool, 1),
+		msgChan:    make(chan []byte),
 	}
 	return c
 }
 
 // 链接的读业务方法
 func (c *connection) StartReader() {
-	fmt.Println("Reader Goroutine is running...")
-	defer fmt.Println("connID = ", c.ConnID, "Reader is exit")
+	fmt.Println("[Reader Goroutine is running]")
+	defer fmt.Println("connID = ", c.ConnID, "[Reader is exit]")
 	defer c.Stop()
 
 	for {
@@ -95,12 +99,34 @@ func (c *connection) StartReader() {
 	}
 }
 
+// 写消息GOroutine，向客户端发消息的模块
+func (c *connection) StartWriter() {
+	fmt.Println("[Writer Goroutine is running]")
+	defer fmt.Println(c.RemoteAddr().String(), " [conn Writer exit]")
+
+	//不断的阻塞等待channel的消息
+	for {
+		select {
+		case data := <-c.msgChan:
+			if _, err := c.Conn.Write(data); err != nil {
+				fmt.Println("Send data error:>>", err)
+				return
+			}
+		case <-c.EixtChan:
+			//代表Reader已经退出，此时Writer也要退出
+			return
+		}
+
+	}
+}
+
 // 启动链接：让当前的链接准备开始工作
 func (c *connection) Start() {
 	fmt.Println("Conn start()... ConnId = ", c.ConnID)
 	//启动从当前链接的读数据业务
 	go c.StartReader()
-	//TODO 启动从当前链接写数据的业务
+	//启动从当前链接写数据的业务
+	go c.StartWriter()
 }
 
 // 停止链接：结束当前链接的工作
@@ -117,7 +143,11 @@ func (c *connection) Stop() {
 	//关闭socket链接
 	c.Conn.Close()
 
+	//告知writer关闭
+	c.EixtChan <- true
+
 	close(c.EixtChan)
+	close(c.msgChan)
 }
 
 // 获取当前链接的绑定的socket conn
@@ -150,11 +180,7 @@ func (c *connection) SendMsg(msgId uint32, data []byte) error {
 		return errors.New("Pack error msg")
 	}
 
-	//将数据发送给客户端
-	if _, err := c.Conn.Write(binaryMsg); err != nil {
-		fmt.Println("Write msg id = ", msgId, " error :>>", err)
-		return errors.New("conn Write error")
-	}
+	c.msgChan <- binaryMsg
 
 	return nil
 }
