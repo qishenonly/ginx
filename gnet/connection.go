@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"ginx/giface"
+	"ginx/utils"
 	"io"
 	"net"
 )
@@ -93,9 +94,13 @@ func (c *connection) StartReader() {
 			msg:  msg,
 		}
 
-		//从路由中找到注册绑定的Conn对应的router调用
-		go c.MsgHandler.DoMsgHandler(&req)
-
+		if utils.GlobalObject.WorkerPoolSize > 0 {
+			//已经开启了工作池机制，将消息发送给worker工作池处理即可
+			c.MsgHandler.SendMsgTOTaskQueue(&req)
+		} else {
+			//从路由中找到注册绑定的Conn对应的router调用
+			go c.MsgHandler.DoMsgHandler(&req)
+		}
 	}
 }
 

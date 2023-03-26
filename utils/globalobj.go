@@ -23,9 +23,11 @@ type GlobalObj struct {
 	/*
 		Ginx
 	*/
-	Version        string //当前Ginx的版本号
-	MaxConn        int    //当前服务器主机允许的最大链接数
-	MaxPackageSize uint32 //当前Ginx框架数据包的最大值
+	Version           string //当前Ginx的版本号
+	MaxConn           int    //当前服务器主机允许的最大链接数
+	MaxPackageSize    uint32 //当前Ginx框架数据包的最大值
+	WorkerPoolSize    uint32 //当前业务工作Worker池的Goroutine数量
+	MaxWorkerTaskSize uint32 //Ginx框架允许用户最多开辟多少个Worker
 }
 
 /*
@@ -39,12 +41,14 @@ var GlobalObject *GlobalObj
 func init() {
 	//如果配置文件没有加载，默认值
 	GlobalObject = &GlobalObj{
-		Name:           "GinxServerApp",
-		Version:        "V0.7",
-		TcpPort:        8999,
-		Host:           "0.0.0.0",
-		MaxConn:        1000,
-		MaxPackageSize: 4096,
+		Name:              "GinxServerApp",
+		Version:           "V0.8",
+		TcpPort:           8999,
+		Host:              "0.0.0.0",
+		MaxConn:           1000,
+		MaxPackageSize:    4096,
+		WorkerPoolSize:    10,   //Worker工作池的队列的个数
+		MaxWorkerTaskSize: 1024, //每个Worker对应的消息队列的任务的数量最大值
 	}
 
 	//从conf/ginx.json加载用户自定义参数
